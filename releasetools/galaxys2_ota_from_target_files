@@ -77,8 +77,8 @@ def WriteFullOTAPackage(input_zip, output_zip):
   script.FormatPartition("/system")
   script.Mount("/system")
   script.UnpackPackageDir("recovery", "/system")
-  script.CopyFile("changelog.txt", "/system/etc/changelog.txt")
   script.UnpackPackageDir("system", "/system")
+  script.CopyFile("changelog.txt", "/system/etc/changelog.txt")
 
   symlinks = CopySystemFiles(input_zip, output_zip)
   script.MakeSymlinks(symlinks)
