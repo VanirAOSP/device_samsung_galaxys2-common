@@ -26,7 +26,7 @@ TARGET_DIR = os.getenv('OUT')
 sys.path.append(RELEASETOOLS_DIR)
 
 # Import the existing file so we just have to rewrite the modules we need.
-# This is a nasty hack as the filename doesn't end in .py, but it works
+# This is a nasty hack as the filename doesnt end in .py, but it works
 filename = os.path.join(RELEASETOOLS_DIR, "ota_from_target_files")
 ota_from_target_files = common.load_module_from_file('ota_from_target_files', filename)
 
