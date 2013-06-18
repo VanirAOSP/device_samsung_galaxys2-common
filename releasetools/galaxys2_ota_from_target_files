@@ -39,8 +39,8 @@ def CopyBootFiles(input_zip, output_zip):
     output_zip.write(os.path.join(TARGET_DIR, "boot.img"),"boot.img")
 
 def WriteFullOTAPackage(input_zip, output_zip):
-  # TODO: how to determine this?  We don't know what version it will
-  # be installed on top of.  For now, we expect the API just won't
+  # TODO: how to determine this?  We dont know what version it will
+  # be installed on top of.  For now, we expect the API just wont
   # change very often.
   script = edify_generator.EdifyGenerator(3, OPTIONS.info_dict)
 
