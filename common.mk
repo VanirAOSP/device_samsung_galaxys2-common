@@ -29,6 +29,10 @@ PRODUCT_COPY_FILES := \
 PRODUCT_COPY_FILES += \
     $(COMMON_PATH)/rootdir/init.recovery.smdk4210.rc:root/init.recovery.smdk4210.rc
 
+# Netflix hack
+PRODUCT_COPY_FILES += \
+    $(COMMON_PATH)/configs/98netflix:system/etc/init.d/98netflix
+
 # Audio
 PRODUCT_COPY_FILES += \
     $(COMMON_PATH)/configs/tinyalsa-audio.xml:system/etc/tinyalsa-audio.xml \
@@ -185,5 +189,5 @@ TARGET_HAL_PATH := hardware/samsung/exynos4/hal
 TARGET_OMX_PATH := hardware/samsung/exynos/multimedia/openmax
 $(call inherit-product, hardware/samsung/exynos4210.mk)
 
-# Use the non-open-source parts, if they're present
--include vendor/samsung/galaxys2-common/common-vendor.mk
+# Include non-open-source parts
+$(call inherit-product, vendor/samsung/galaxys2-common/common-vendor.mk)
