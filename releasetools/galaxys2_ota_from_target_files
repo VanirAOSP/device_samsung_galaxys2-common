@@ -26,7 +26,7 @@ TARGET_DIR = os.getenv('OUT')
 sys.path.append(RELEASETOOLS_DIR)
 
 # Import the existing file so we just have to rewrite the modules we need.
-# This is a nasty hack as the filename doesnt end in .py, but it works
+# This is a nasty hack as the filename doesn't end in .py, but it works
 filename = os.path.join(RELEASETOOLS_DIR, "ota_from_target_files")
 ota_from_target_files = common.load_module_from_file('ota_from_target_files', filename)
 
@@ -39,8 +39,8 @@ def CopyBootFiles(input_zip, output_zip):
     output_zip.write(os.path.join(TARGET_DIR, "boot.img"),"boot.img")
 
 def WriteFullOTAPackage(input_zip, output_zip):
-  # TODO: how to determine this?  We dont know what version it will
-  # be installed on top of.  For now, we expect the API just wont
+  # TODO: how to determine this?  We don't know what version it will
+  # be installed on top of.  For now, we expect the API just won't
   # change very often.
   script = edify_generator.EdifyGenerator(3, OPTIONS.info_dict)
 
@@ -61,52 +61,23 @@ def WriteFullOTAPackage(input_zip, output_zip):
       metadata=metadata,
       info_dict=OPTIONS.info_dict)
 
-  AppendAssertions(script, input_zip)
+  AppendAssertions(script, OPTIONS.info_dict)
   device_specific.FullOTA_Assertions()
   if OPTIONS.backuptool:
     script.Mount("/system")
     script.RunBackup("backup")
-    script.Unmount("/system") 
+    script.Unmount("/system")
 
   script.ShowProgress(0.5, 0)
 
   if OPTIONS.wipe_user_data:
     script.FormatPartition("/data")
 
-  script.Print("                                        ");
-  script.Print("                8OOOO8                  ");
-  script.Print("           88888O88O888888D             ");
-  script.Print("         88888888888888888888           ");
-  script.Print("       8888888888888888888888D8         ");
-  script.Print("     8DD8888888888888888888D8DDD        ");
-  script.Print("    DDDDDD8888888888888888DDDD          ");
-  script.Print("   DDDDDDDD8           NDDDD8           ");
-  script.Print("   DDDDDD                 D             ");
-  script.Print("  DDDDDD N                              ");
-  script.Print("  DDDD  NN                              ");
-  script.Print("  NND  NNN                              ");
-  script.Print("  NNN NNNN                              ");
-  script.Print("  NN  NNNN                              ");
-  script.Print("  NN NNNNDN                             ");
-  script.Print("   N NNNDNN8                        D   ");
-  script.Print("   N NNDN  D8                     NN    ");
-  script.Print("    N 8  D8  DD                  DD8    ");
-  script.Print("      NNN   DD  DN                      ");
-  script.Print("          DDN  DDN  NDDDDD              ");
-  script.Print("         NNN  NDD8   DDDDDD             ");
-  script.Print("              DDD    DDDDDDD            ");
-  script.Print("              DDD    DDDDND             ");
-  script.Print("                                        ");
-  script.Print("                                        ");
-
-  script.Print("Erasing System...")
-
   script.Unmount("/system")
   script.FormatPartition("/system")
   script.Mount("/system")
   script.UnpackPackageDir("recovery", "/system")
   script.UnpackPackageDir("system", "/system")
-  script.CopyFile("changelog.txt", "/system/etc/changelog.txt")
 
   symlinks = CopySystemFiles(input_zip, output_zip)
   script.MakeSymlinks(symlinks)
@@ -120,7 +91,7 @@ def WriteFullOTAPackage(input_zip, output_zip):
 
   if OPTIONS.backuptool:
     script.ShowProgress(0.2, 10)
-    script.RunBackup("restore") 
+    script.RunBackup("restore")
 
   script.ShowProgress(0.2, 10)
   script.EMMCWriteRawImage("/dev/block/mmcblk0p5", "boot.img")
