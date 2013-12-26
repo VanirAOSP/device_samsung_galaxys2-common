@@ -71,8 +71,7 @@ BOARD_HARDWARE_CLASS := hardware/samsung/cmhw
 # Graphics
 BOARD_EGL_CFG := device/samsung/galaxys2-common/configs/egl.cfg
 USE_OPENGL_RENDERER := true
-COMMON_GLOBAL_CFLAGS += -DFORCE_SCREENSHOT_CPU_PATH
-BOARD_EGL_NEEDS_LEGACY_FB := true
+COMMON_GLOBAL_CFLAGS += -DFORCE_SCREENSHOT_CPU_PATH -DWORKAROUND_BUG_10194508
 
 # FIMG Acceleration
 BOARD_USES_FIMGAPI := true
@@ -137,15 +136,18 @@ BOARD_VOLD_DISC_HAS_MULTIPLE_MAJORS := true
 TARGET_USE_CUSTOM_LUN_FILE_PATH := "/sys/devices/platform/s3c-usbgadget/gadget/lun%d/file"
 
 # Selinux
-BOARD_SEPOLICY_DIRS := \
+BOARD_SEPOLICY_DIRS += \
     device/samsung/galaxys2-common/selinux
 
-BOARD_SEPOLICY_UNION := \
+BOARD_SEPOLICY_UNION += \
     device.te \
+    drmserver.te \
+    ueventd.te \
     domain.te \
     file.te \
     file_contexts \
-    rild.te
+    rild.te \
+    vold.te
 
 # Recovery
 BOARD_CUSTOM_RECOVERY_KEYMAPPING := ../../device/samsung/galaxys2-common/recovery/recovery_keys.c
@@ -167,6 +169,9 @@ BOARD_BATTERY_DEVICE_NAME := "battery"
 BOARD_CHARGER_RES := device/samsung/galaxys2-common/res/charger
 
 BOARD_CUSTOM_BOOTIMG_MK := device/samsung/galaxys2-common/shbootimg.mk
+
+# Override healthd HAL
+BOARD_HAL_STATIC_LIBRARIES := libhealthd.exynos4
 
 # Use the non-open-source parts, if they're present
 -include vendor/samsung/galaxys2-common/BoardConfigVendor.mk
