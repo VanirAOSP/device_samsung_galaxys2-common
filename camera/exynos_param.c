@@ -27,34 +27,6 @@
 
 #include "exynos_camera.h"
 
-int list_head_insert(struct list_head *list, struct list_head *prev,
-	struct list_head *next)
-{
-	if (list == NULL)
-		return -EINVAL;
-
-	list->prev = prev;
-	list->next = next;
-
-	if(prev != NULL)
-		prev->next = list;
-	if(next != NULL)
-		next->prev = list;
-
-	return 0;
-}
-
-void list_head_remove(struct list_head *list)
-{
-	if(list == NULL)
-		return;
-
-	if(list->next != NULL)
-		list->next->prev = list->prev;
-	if(list->prev != NULL)
-		list->prev->next = list->next;
-}
-
 int exynos_param_register(struct exynos_camera *exynos_camera, char *key,
 	union exynos_param_data data, enum exynos_param_type type)
 {

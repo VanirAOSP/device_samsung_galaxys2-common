@@ -37,11 +37,17 @@
 
 #include "exynos_camera.h"
 
-/*
- * Utils
- */
+int exynos_v4l2_init(struct exynos_camera *exynos_camera)
+{
+	int i;
 
-int exynos_v4l2_find_index(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+	for (i = 0; i < EXYNOS_CAMERA_MAX_V4L2_NODES_COUNT; i++)
+		exynos_camera->v4l2_fds[i] = -1;
+
+	return 0;
+}
+
+int exynos_v4l2_index(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
 {
 	int index;
 	int i;
@@ -64,23 +70,21 @@ int exynos_v4l2_find_index(struct exynos_camera *exynos_camera, int exynos_v4l2_
 	return index;
 }
 
-int exynos_v4l2_find_fd(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_fd(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
 {
 	int index;
 
 	if (exynos_camera == NULL)
 		return -EINVAL;
 
-	index = exynos_v4l2_find_index(exynos_camera, exynos_v4l2_id);
-	if (index < 0)
+	index = exynos_v4l2_index(exynos_camera, exynos_v4l2_id);
+	if (index < 0) {
+		ALOGE("%s: Unable to get v4l2 index for id %d", __func__, exynos_v4l2_id);
 		return -1;
+	}
 
 	return exynos_camera->v4l2_fds[index];
 }
-
-/*
- * File ops
- */
 
 int exynos_v4l2_open(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
 {
@@ -92,16 +96,16 @@ int exynos_v4l2_open(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
 		exynos_camera->config->v4l2_nodes == NULL)
 		return -EINVAL;
 
-	index = exynos_v4l2_find_index(exynos_camera, exynos_v4l2_id);
+	index = exynos_v4l2_index(exynos_camera, exynos_v4l2_id);
 	if (index < 0) {
-		ALOGE("%s: Unable to find v4l2 node #%d", __func__, exynos_v4l2_id);
+		ALOGE("%s: Unable to get v4l2 node for id %d", __func__, exynos_v4l2_id);
 		return -1;
 	}
 
 	node = exynos_camera->config->v4l2_nodes[index].node;
 	fd = open(node, O_RDWR);
 	if (fd < 0) {
-		ALOGE("%s: Unable to open v4l2 node #%d", __func__, exynos_v4l2_id);
+		ALOGE("%s: Unable to open v4l2 node for id %d", __func__, exynos_v4l2_id);
 		return -1;
 	}
 
@@ -118,13 +122,13 @@ void exynos_v4l2_close(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
 		exynos_camera->config->v4l2_nodes == NULL)
 		return;
 
-	index = exynos_v4l2_find_index(exynos_camera, exynos_v4l2_id);
+	index = exynos_v4l2_index(exynos_camera, exynos_v4l2_id);
 	if (index < 0) {
-		ALOGE("%s: Unable to find v4l2 node #%d", __func__, exynos_v4l2_id);
+		ALOGE("%s: Unable to get v4l2 node for id %d", __func__, exynos_v4l2_id);
 		return;
 	}
 
-	if (exynos_camera->v4l2_fds[index] > 0)
+	if (exynos_camera->v4l2_fds[index] >= 0)
 		close(exynos_camera->v4l2_fds[index]);
 
 	exynos_camera->v4l2_fds[index] = -1;
@@ -138,9 +142,9 @@ int exynos_v4l2_ioctl(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	if (exynos_camera == NULL)
 		return -EINVAL;
 
-	fd = exynos_v4l2_find_fd(exynos_camera, exynos_v4l2_id);
+	fd = exynos_v4l2_fd(exynos_camera, exynos_v4l2_id);
 	if (fd < 0) {
-		ALOGE("%s: Unable to find v4l2 fd #%d", __func__, exynos_v4l2_id);
+		ALOGE("%s: Unable to get v4l2 fd for id %d", __func__, exynos_v4l2_id);
 		return -1;
 	}
 
@@ -156,9 +160,9 @@ int exynos_v4l2_poll(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
 	if (exynos_camera == NULL)
 		return -EINVAL;
 
-	fd = exynos_v4l2_find_fd(exynos_camera, exynos_v4l2_id);
+	fd = exynos_v4l2_fd(exynos_camera, exynos_v4l2_id);
 	if (fd < 0) {
-		ALOGE("%s: Unable to find v4l2 fd #%d", __func__, exynos_v4l2_id);
+		ALOGE("%s: Unable to get v4l2 fd for id %d", __func__, exynos_v4l2_id);
 		return -1;
 	}
 
@@ -167,20 +171,14 @@ int exynos_v4l2_poll(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
 	events.events = POLLIN | POLLERR;
 
 	rc = poll(&events, 1, 1000);
-	if (rc < 0 || events.revents & POLLERR) {
-		ALOGE("%s: poll failed", __func__);
+	if (rc < 0 || events.revents & POLLERR)
 		return -1;
-	}
 
 	return rc;
 }
 
-/*
- * VIDIOC
- */
-
 int exynos_v4l2_qbuf(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int type, int memory, int index)
+	int type, int memory, int index, unsigned long userptr)
 {
 	struct v4l2_buffer buffer;
 	int rc;
@@ -188,31 +186,30 @@ int exynos_v4l2_qbuf(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	if (exynos_camera == NULL || index < 0)
 		return -EINVAL;
 
+	memset(&buffer, 0, sizeof(buffer));
 	buffer.type = type;
 	buffer.memory = memory;
 	buffer.index = index;
 
-	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_QBUF, &buffer);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (userptr)
+		buffer.m.userptr = userptr;
 
-	return 0;
+	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_QBUF, &buffer);
+	return rc;
 }
 
 int exynos_v4l2_qbuf_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	int index)
 {
 	return exynos_v4l2_qbuf(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
-		V4L2_MEMORY_MMAP, index);
+		V4L2_MEMORY_MMAP, index, 0);
 }
 
 int exynos_v4l2_qbuf_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int index)
+	int index, unsigned long userptr)
 {
 	return exynos_v4l2_qbuf(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
-		V4L2_MEMORY_USERPTR, index);
+		V4L2_MEMORY_USERPTR, index, userptr);
 }
 
 int exynos_v4l2_dqbuf(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
@@ -229,28 +226,91 @@ int exynos_v4l2_dqbuf(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	buffer.memory = memory;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_DQBUF, &buffer);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	return buffer.index;
 }
 
-int exynos_v4l2_dqbuf_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_s_ext_ctrl_face_detection(struct exynos_camera *exynos_camera,
+	int id, void *value)
+{
+	struct v4l2_ext_control ext_ctrl_fd[111];
+	struct v4l2_ext_controls ext_ctrls_fd;
+	struct v4l2_ext_controls *ctrls;
+	camera_frame_metadata_t *facedata = (camera_frame_metadata_t *)value;
+	int i, ret;
+
+	ext_ctrl_fd[0].id = V4L2_CID_IS_FD_GET_FACE_COUNT;
+	for (i = 0; i < exynos_camera->max_detected_faces; i++) {
+		ext_ctrl_fd[22*i+1].id = V4L2_CID_IS_FD_GET_FACE_FRAME_NUMBER;
+		ext_ctrl_fd[22*i+2].id = V4L2_CID_IS_FD_GET_FACE_CONFIDENCE;
+		ext_ctrl_fd[22*i+3].id = V4L2_CID_IS_FD_GET_FACE_SMILE_LEVEL;
+		ext_ctrl_fd[22*i+4].id = V4L2_CID_IS_FD_GET_FACE_BLINK_LEVEL;
+		ext_ctrl_fd[22*i+5].id = V4L2_CID_IS_FD_GET_FACE_TOPLEFT_X;
+		ext_ctrl_fd[22*i+6].id = V4L2_CID_IS_FD_GET_FACE_TOPLEFT_Y;
+		ext_ctrl_fd[22*i+7].id = V4L2_CID_IS_FD_GET_FACE_BOTTOMRIGHT_X;
+		ext_ctrl_fd[22*i+8].id = V4L2_CID_IS_FD_GET_FACE_BOTTOMRIGHT_Y;
+		ext_ctrl_fd[22*i+9].id = V4L2_CID_IS_FD_GET_LEFT_EYE_TOPLEFT_X;
+		ext_ctrl_fd[22*i+10].id = V4L2_CID_IS_FD_GET_LEFT_EYE_TOPLEFT_Y;
+		ext_ctrl_fd[22*i+11].id = V4L2_CID_IS_FD_GET_LEFT_EYE_BOTTOMRIGHT_X;
+		ext_ctrl_fd[22*i+12].id = V4L2_CID_IS_FD_GET_LEFT_EYE_BOTTOMRIGHT_Y;
+		ext_ctrl_fd[22*i+13].id = V4L2_CID_IS_FD_GET_RIGHT_EYE_TOPLEFT_X;
+		ext_ctrl_fd[22*i+14].id = V4L2_CID_IS_FD_GET_RIGHT_EYE_TOPLEFT_Y;
+		ext_ctrl_fd[22*i+15].id = V4L2_CID_IS_FD_GET_RIGHT_EYE_BOTTOMRIGHT_X;
+		ext_ctrl_fd[22*i+16].id = V4L2_CID_IS_FD_GET_RIGHT_EYE_BOTTOMRIGHT_Y;
+		ext_ctrl_fd[22*i+17].id = V4L2_CID_IS_FD_GET_MOUTH_TOPLEFT_X;
+		ext_ctrl_fd[22*i+18].id = V4L2_CID_IS_FD_GET_MOUTH_TOPLEFT_Y;
+		ext_ctrl_fd[22*i+19].id = V4L2_CID_IS_FD_GET_MOUTH_BOTTOMRIGHT_X;
+		ext_ctrl_fd[22*i+20].id = V4L2_CID_IS_FD_GET_MOUTH_BOTTOMRIGHT_Y;
+		ext_ctrl_fd[22*i+21].id = V4L2_CID_IS_FD_GET_ANGLE;
+		ext_ctrl_fd[22*i+22].id = V4L2_CID_IS_FD_GET_NEXT;
+	}
+
+	ext_ctrls_fd.ctrl_class = V4L2_CTRL_CLASS_CAMERA;
+	ext_ctrls_fd.count = 111;
+	ext_ctrls_fd.controls = ext_ctrl_fd;
+	ctrls = &ext_ctrls_fd;
+
+	ret = exynos_v4l2_ioctl(exynos_camera, id, VIDIOC_G_EXT_CTRLS, &ext_ctrls_fd);
+
+	facedata->number_of_faces = ext_ctrls_fd.controls[0].value;
+
+	for(i = 0; i < facedata->number_of_faces; i++) {
+		facedata->faces[i].rect[0] = ext_ctrl_fd[22*i+5].value;
+		facedata->faces[i].rect[1] = ext_ctrl_fd[22*i+6].value;
+		facedata->faces[i].rect[2] = ext_ctrl_fd[22*i+7].value;
+		facedata->faces[i].rect[3] = ext_ctrl_fd[22*i+8].value;
+		facedata->faces[i].score = ext_ctrl_fd[22*i+2].value;
+		/* TODO : id is unique value for each face. We need to suppot this. */
+		facedata->faces[i].id = 0;
+		facedata->faces[i].left_eye[0] = (ext_ctrl_fd[22*i+9].value + ext_ctrl_fd[22*i+11].value) / 2;
+		facedata->faces[i].left_eye[1] = (ext_ctrl_fd[22*i+10].value + ext_ctrl_fd[22*i+12].value) / 2;
+		facedata->faces[i].right_eye[0] = (ext_ctrl_fd[22*i+13].value + ext_ctrl_fd[22*i+15].value) / 2;
+		facedata->faces[i].right_eye[1] = (ext_ctrl_fd[22*i+14].value + ext_ctrl_fd[22*i+16].value) / 2;
+		facedata->faces[i].mouth[0] = (ext_ctrl_fd[22*i+17].value + ext_ctrl_fd[22*i+19].value) / 2;
+		facedata->faces[i].mouth[1] = (ext_ctrl_fd[22*i+18].value + ext_ctrl_fd[22*i+20].value) / 2;
+	}
+
+	return ret;
+}
+
+int exynos_v4l2_dqbuf_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id)
 {
 	return exynos_v4l2_dqbuf(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
 		V4L2_MEMORY_MMAP);
 }
 
-int exynos_v4l2_dqbuf_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_dqbuf_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id)
 {
 	return exynos_v4l2_dqbuf(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
 		V4L2_MEMORY_USERPTR);
 }
 
-int exynos_v4l2_reqbufs(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int type, int memory, int count)
+int exynos_v4l2_reqbufs(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int type, int memory, int count)
 {
 	struct v4l2_requestbuffers requestbuffers;
 	int rc;
@@ -263,30 +323,28 @@ int exynos_v4l2_reqbufs(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	requestbuffers.memory = memory;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_REQBUFS, &requestbuffers);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	return requestbuffers.count;
 }
 
-int exynos_v4l2_reqbufs_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int count)
+int exynos_v4l2_reqbufs_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int count)
 {
 	return exynos_v4l2_reqbufs(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
 		V4L2_MEMORY_MMAP, count);
 }
 
-int exynos_v4l2_reqbufs_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int count)
+int exynos_v4l2_reqbufs_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int count)
 {
 	return exynos_v4l2_reqbufs(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
 		V4L2_MEMORY_USERPTR, count);
 }
 
-int exynos_v4l2_querybuf(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int type, int memory, int index)
+int exynos_v4l2_querybuf(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int type, int memory, int index)
 {
 	struct v4l2_buffer buffer;
 	int rc;
@@ -300,30 +358,28 @@ int exynos_v4l2_querybuf(struct exynos_camera *exynos_camera, int exynos_v4l2_id
 	buffer.index = index;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_QUERYBUF, &buffer);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	return buffer.length;
 }
 
-int exynos_v4l2_querybuf_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int index)
+int exynos_v4l2_querybuf_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int index)
 {
 	return exynos_v4l2_querybuf(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
 		V4L2_MEMORY_MMAP, index);
 }
 
-int exynos_v4l2_querybuf_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int index)
+int exynos_v4l2_querybuf_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int index)
 {
 	return exynos_v4l2_querybuf(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
 		V4L2_MEMORY_USERPTR, index);
 }
 
-int exynos_v4l2_querycap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int flags)
+int exynos_v4l2_querycap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int flags)
 {
 	struct v4l2_capability cap;
 	int rc;
@@ -332,10 +388,8 @@ int exynos_v4l2_querycap(struct exynos_camera *exynos_camera, int exynos_v4l2_id
 		return -EINVAL;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_QUERYCAP, &cap);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	if (!(cap.capabilities & flags))
 		return -1;
@@ -343,18 +397,20 @@ int exynos_v4l2_querycap(struct exynos_camera *exynos_camera, int exynos_v4l2_id
 	return 0;
 }
 
-int exynos_v4l2_querycap_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_querycap_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id)
 {
 	return exynos_v4l2_querycap(exynos_camera, exynos_v4l2_id, V4L2_CAP_VIDEO_CAPTURE);
 }
 
-int exynos_v4l2_querycap_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_querycap_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id)
 {
 	return exynos_v4l2_querycap(exynos_camera, exynos_v4l2_id, V4L2_CAP_VIDEO_OUTPUT);
 }
 
-int exynos_v4l2_streamon(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int type)
+int exynos_v4l2_streamon(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int type)
 {
 	enum v4l2_buf_type buf_type;
 	int rc;
@@ -365,26 +421,23 @@ int exynos_v4l2_streamon(struct exynos_camera *exynos_camera, int exynos_v4l2_id
 	buf_type = type;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_STREAMON, &buf_type);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
-
-	return 0;
+	return rc;
 }
 
-int exynos_v4l2_streamon_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_streamon_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id)
 {
 	return exynos_v4l2_streamon(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE);
 }
 
-int exynos_v4l2_streamon_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_streamon_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id)
 {
 	return exynos_v4l2_streamon(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT);
 }
 
-int exynos_v4l2_streamoff(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int type)
+int exynos_v4l2_streamoff(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int type)
 {
 	enum v4l2_buf_type buf_type;
 	int rc;
@@ -395,20 +448,17 @@ int exynos_v4l2_streamoff(struct exynos_camera *exynos_camera, int exynos_v4l2_i
 	buf_type = type;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_STREAMOFF, &buf_type);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
-
-	return 0;
+	return rc;
 }
 
-int exynos_v4l2_streamoff_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_streamoff_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id)
 {
 	return exynos_v4l2_streamoff(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE);
 }
 
-int exynos_v4l2_streamoff_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id)
+int exynos_v4l2_streamoff_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id)
 {
 	return exynos_v4l2_streamoff(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT);
 }
@@ -426,10 +476,8 @@ int exynos_v4l2_g_fmt(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	format.fmt.pix.field = V4L2_FIELD_NONE;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_G_FMT, &format);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	if (width != NULL)
 		*width = format.fmt.pix.width;
@@ -441,22 +489,23 @@ int exynos_v4l2_g_fmt(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	return 0;
 }
 
-int exynos_v4l2_g_fmt_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int *width, int *height, int *fmt)
+int exynos_v4l2_g_fmt_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int *width, int *height, int *fmt)
 {
 	return exynos_v4l2_g_fmt(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
 		width, height, fmt);
 }
 
-int exynos_v4l2_g_fmt_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int *width, int *height, int *fmt)
+int exynos_v4l2_g_fmt_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int *width, int *height, int *fmt)
 {
 	return exynos_v4l2_g_fmt(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
 		width, height, fmt);
 }
 
-int exynos_v4l2_s_fmt_pix(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int type, int width, int height, int fmt, int priv)
+int exynos_v4l2_s_fmt_pix(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int type, int width, int height, int fmt, int field,
+	int priv)
 {
 	struct v4l2_format format;
 	int rc;
@@ -469,34 +518,31 @@ int exynos_v4l2_s_fmt_pix(struct exynos_camera *exynos_camera, int exynos_v4l2_i
 	format.fmt.pix.width = width;
 	format.fmt.pix.height = height;
 	format.fmt.pix.pixelformat = fmt;
-	format.fmt.pix.field = V4L2_FIELD_NONE;
+	format.fmt.pix.field = field;
 	format.fmt.pix.priv = priv;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_S_FMT, &format);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	return rc;
 
 	return 0;
 }
 
-int exynos_v4l2_s_fmt_pix_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int width, int height, int fmt, int priv)
+int exynos_v4l2_s_fmt_pix_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int width, int height, int fmt, int priv)
 {
 	return exynos_v4l2_s_fmt_pix(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
-		width, height, fmt, priv);
+		width, height, fmt, V4L2_FIELD_NONE, priv);
 }
 
-int exynos_v4l2_s_fmt_pix_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int width, int height, int fmt, int priv)
+int exynos_v4l2_s_fmt_pix_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int width, int height, int fmt, int priv)
 {
 	return exynos_v4l2_s_fmt_pix(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
-		width, height, fmt, priv);
+		width, height, fmt, V4L2_FIELD_NONE, priv);
 }
 
-int exynos_v4l2_s_fmt_win(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int left, int top, int width, int height)
+int exynos_v4l2_s_fmt_win(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int left, int top, int width, int height)
 {
 	struct v4l2_format format;
 	int rc;
@@ -513,16 +559,11 @@ int exynos_v4l2_s_fmt_win(struct exynos_camera *exynos_camera, int exynos_v4l2_i
 
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_S_FMT, &format);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
-
-	return 0;
+	return rc;
 }
 
-int exynos_v4l2_enum_fmt(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int type, int fmt)
+int exynos_v4l2_enum_fmt(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int type, int fmt)
 {
 	struct v4l2_fmtdesc fmtdesc;
 	int rc;
@@ -535,10 +576,8 @@ int exynos_v4l2_enum_fmt(struct exynos_camera *exynos_camera, int exynos_v4l2_id
 
 	do {
 		rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_ENUM_FMT, &fmtdesc);
-		if (rc < 0) {
-			ALOGE("%s: ioctl failed", __func__);
-			return -1;
-		}
+		if (rc < 0)
+			return rc;
 
 		if (fmtdesc.pixelformat == (unsigned int) fmt)
 			return 0;
@@ -549,22 +588,22 @@ int exynos_v4l2_enum_fmt(struct exynos_camera *exynos_camera, int exynos_v4l2_id
 	return -1;
 }
 
-int exynos_v4l2_enum_fmt_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int fmt)
+int exynos_v4l2_enum_fmt_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int fmt)
 {
 	return exynos_v4l2_enum_fmt(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
 		fmt);
 }
 
-int exynos_v4l2_enum_fmt_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int fmt)
+int exynos_v4l2_enum_fmt_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int fmt)
 {
 	return exynos_v4l2_enum_fmt(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
 		fmt);
 }
 
-int exynos_v4l2_enum_input(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int id)
+int exynos_v4l2_enum_input(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int id)
 {
 	struct v4l2_input input;
 	int rc;
@@ -575,10 +614,8 @@ int exynos_v4l2_enum_input(struct exynos_camera *exynos_camera, int exynos_v4l2_
 	input.index = id;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_ENUMINPUT, &input);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	if (input.name[0] == '\0')
 		return -1;
@@ -598,16 +635,11 @@ int exynos_v4l2_s_input(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	input.index = id;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_S_INPUT, &input);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
-
-	return 0;
+	return rc;
 }
 
-int exynos_v4l2_g_ext_ctrls(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	struct v4l2_ext_control *control, int count)
+int exynos_v4l2_g_ext_ctrls(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, struct v4l2_ext_control *control, int count)
 {
 	struct v4l2_ext_controls controls;
 	int rc;
@@ -621,12 +653,7 @@ int exynos_v4l2_g_ext_ctrls(struct exynos_camera *exynos_camera, int exynos_v4l2
 	controls.controls = control;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_G_EXT_CTRLS, &controls);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
-
-	return 0;
+	return rc;
 }
 
 int exynos_v4l2_g_ctrl(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
@@ -641,10 +668,8 @@ int exynos_v4l2_g_ctrl(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	control.id = id;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_G_CTRL, &control);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	if (value != NULL)
 		*value = control.value;
@@ -665,10 +690,8 @@ int exynos_v4l2_s_ctrl(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	control.value = value;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_S_CTRL, &control);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	return control.value;
 }
@@ -684,23 +707,18 @@ int exynos_v4l2_s_parm(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	streamparm->type = type;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_S_PARM, streamparm);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
-
-	return 0;
+	return rc;
 }
 
-int exynos_v4l2_s_parm_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	struct v4l2_streamparm *streamparm)
+int exynos_v4l2_s_parm_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, struct v4l2_streamparm *streamparm)
 {
 	return exynos_v4l2_s_parm(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
 		streamparm);
 }
 
-int exynos_v4l2_s_parm_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	struct v4l2_streamparm *streamparm)
+int exynos_v4l2_s_parm_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, struct v4l2_streamparm *streamparm)
 {
 	return exynos_v4l2_s_parm(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
 		streamparm);
@@ -722,23 +740,18 @@ int exynos_v4l2_s_crop(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	crop.c.height = height;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_S_CROP, &crop);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
-
-	return 0;
+	return rc;
 }
 
-int exynos_v4l2_s_crop_cap(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int left, int top, int width, int height)
+int exynos_v4l2_s_crop_cap(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int left, int top, int width, int height)
 {
 	return exynos_v4l2_s_crop(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_CAPTURE,
 		left, top, width, height);
 }
 
-int exynos_v4l2_s_crop_out(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
-	int left, int top, int width, int height)
+int exynos_v4l2_s_crop_out(struct exynos_camera *exynos_camera,
+	int exynos_v4l2_id, int left, int top, int width, int height)
 {
 	return exynos_v4l2_s_crop(exynos_camera, exynos_v4l2_id, V4L2_BUF_TYPE_VIDEO_OUTPUT,
 		left, top, width, height);
@@ -754,10 +767,8 @@ int exynos_v4l2_g_fbuf(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 		return -EINVAL;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_G_FBUF, &framebuffer);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
+	if (rc < 0)
+		return rc;
 
 	if (base != NULL)
 		*base = framebuffer.base;
@@ -787,10 +798,5 @@ int exynos_v4l2_s_fbuf(struct exynos_camera *exynos_camera, int exynos_v4l2_id,
 	framebuffer.fmt.pixelformat = fmt;
 
 	rc = exynos_v4l2_ioctl(exynos_camera, exynos_v4l2_id, VIDIOC_S_FBUF, &framebuffer);
-	if (rc < 0) {
-		ALOGE("%s: ioctl failed", __func__);
-		return -1;
-	}
-
-	return 0;
+	return rc;
 }
